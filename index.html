@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>БойкотСкан</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#09090f; --surface:#111118; --card:#14141c;
+    --border:#1c1c2a; --border2:#242433;
+    --red:#ff3b5c; --red-dim:rgba(255,59,92,0.12);
+    --green:#00e57a; --green-dim:rgba(0,229,122,0.09);
+    --yellow:#ffd23f; --yellow-dim:rgba(255,210,63,0.09);
+    --text:#ededf5; --text2:#9898b8; --muted:#555570;
+    --radius:14px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;padding-bottom:40px;}
+  body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:9998;}
+
+  header{padding:18px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(9,9,15,0.92);backdrop-filter:blur(12px);z-index:100;}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo-icon{width:32px;height:32px;background:var(--red);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:#fff;flex-shrink:0;}
+  .logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:-0.3px;}
+  .logo-text span{color:var(--red);}
+  .header-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+  .api-badge{font-size:10px;font-weight:500;padding:4px 8px;background:rgba(0,229,122,0.1);border:1px solid rgba(0,229,122,0.2);border-radius:20px;color:var(--green);letter-spacing:0.3px;}
+
+  main{padding:20px;max-width:500px;margin:0 auto;}
+
+  .scan-wrap{margin-bottom:20px;}
+  .scan-box{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;aspect-ratio:4/3;}
+  #interactive{width:100%;height:100%;position:relative;}
+  #interactive video{width:100%;height:100%;object-fit:cover;display:block;}
+  #interactive canvas.drawingBuffer{position:absolute;top:0;left:0;width:100%;height:100%;}
+  .scan-idle{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px;}
+  .barcode-art{display:flex;gap:3px;align-items:flex-end;height:52px;opacity:0.22;}
+  .barcode-art span{display:block;background:var(--text);border-radius:1px;width:3px;animation:barpulse 2.4s ease-in-out infinite;}
+  .barcode-art span:nth-child(2n){width:2px;}
+  .barcode-art span:nth-child(3n){width:5px;}
+  @keyframes barpulse{0%,100%{opacity:0.3;}50%{opacity:0.8;}}
+  .scan-idle p{color:var(--text2);font-size:14px;text-align:center;line-height:1.6;}
+
+  .laser{position:absolute;left:8%;width:84%;height:2px;background:linear-gradient(90deg,transparent,var(--red) 30%,var(--red) 70%,transparent);box-shadow:0 0 10px var(--red),0 0 20px rgba(255,59,92,0.4);animation:laserScan 1.8s ease-in-out infinite;display:none;pointer-events:none;}
+  .laser.on{display:block;}
+  @keyframes laserScan{0%{top:18%;}50%{top:82%;}100%{top:18%;}}
+  .corner{position:absolute;width:22px;height:22px;border-color:var(--red);border-style:solid;display:none;}
+  .corner.on{display:block;}
+  .tl{top:10px;left:10px;border-width:2px 0 0 2px;border-radius:3px 0 0 0;}
+  .tr{top:10px;right:10px;border-width:2px 2px 0 0;border-radius:0 3px 0 0;}
+  .bl{bottom:10px;left:10px;border-width:0 0 2px 2px;border-radius:0 0 0 3px;}
+  .br{bottom:10px;right:10px;border-width:0 2px 2px 0;border-radius:0 0 3px 0;}
+
+  .btn-scan{width:100%;margin-top:10px;padding:15px;background:var(--red);color:#fff;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;cursor:pointer;transition:all 0.18s;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .btn-scan:hover{filter:brightness(1.1);transform:translateY(-1px);}
+  .btn-scan:active{transform:translateY(0);}
+  .btn-scan.stop{background:var(--surface);border:1px solid var(--border2);color:var(--text2);}
+
+  .section-label{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;}
+  .manual-wrap{margin-bottom:20px;}
+  .input-row{display:flex;gap:8px;}
+  input[type="text"]{flex:1;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:13px 16px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;transition:border-color 0.2s;letter-spacing:1px;}
+  input[type="text"]:focus{border-color:var(--red);}
+  input::placeholder{color:var(--muted);letter-spacing:0;}
+  .btn-go{padding:13px 18px;background:var(--surface);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.18s;white-space:nowrap;}
+  .btn-go:hover{border-color:var(--red);color:var(--red);}
+
+  .loading{display:none;align-items:center;gap:12px;padding:18px;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);font-size:14px;}
+  .loading.on{display:flex;}
+  .spin{width:20px;height:20px;flex-shrink:0;border:2px solid var(--border2);border-top-color:var(--red);border-radius:50%;animation:spin 0.65s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .load-text{display:flex;flex-direction:column;gap:3px;}
+  .load-sub{font-size:12px;color:var(--muted);}
+
+  .result-card{border-radius:var(--radius);border:1px solid;padding:0;margin-bottom:20px;overflow:hidden;animation:fadeUp 0.3s ease;display:none;}
+  .result-card.on{display:block;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+  .result-card.boycott{border-color:rgba(255,59,92,0.3);}
+  .result-card.clean{border-color:rgba(0,229,122,0.25);}
+  .result-card.unknown{border-color:rgba(255,210,63,0.25);}
+
+  .result-banner{padding:16px 18px;display:flex;align-items:center;gap:14px;}
+  .boycott .result-banner{background:var(--red-dim);}
+  .clean .result-banner{background:var(--green-dim);}
+  .unknown .result-banner{background:var(--yellow-dim);}
+  .result-emoji{font-size:28px;line-height:1;flex-shrink:0;}
+  .result-verdict{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;line-height:1.1;letter-spacing:-0.3px;}
+  .boycott .result-verdict{color:var(--red);}
+  .clean .result-verdict{color:var(--green);}
+  .unknown .result-verdict{color:var(--yellow);}
+  .result-sub{font-size:13px;color:var(--text2);margin-top:3px;}
+
+  .result-body{padding:16px 18px;display:flex;flex-direction:column;gap:12px;}
+  .product-info{display:flex;gap:14px;align-items:flex-start;}
+  .product-img{width:64px;height:64px;border-radius:8px;object-fit:contain;background:rgba(255,255,255,0.05);border:1px solid var(--border2);flex-shrink:0;}
+  .product-img-ph{width:64px;height:64px;border-radius:8px;background:var(--surface);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;}
+  .product-meta{flex:1;}
+  .product-brand{font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;}
+  .product-fullname{font-size:15px;font-weight:500;line-height:1.3;color:var(--text);}
+  .product-country{font-size:12px;color:var(--muted);margin-top:4px;}
+
+  .reason-box{padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:9px;font-size:14px;line-height:1.65;color:var(--text);}
+  .reason-label{font-size:10px;font-weight:500;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+
+  .tag-row{display:flex;flex-wrap:wrap;gap:6px;}
+  .tag{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:500;background:rgba(255,255,255,0.05);border:1px solid var(--border2);color:var(--text2);}
+  .tag.warn{background:var(--red-dim);border-color:rgba(255,59,92,0.25);color:var(--red);}
+
+  .alt-section{margin-top:2px;}
+  .alt-label{font-size:11px;color:var(--muted);letter-spacing:0.5px;margin-bottom:8px;font-weight:500;}
+  .alt-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .alt-chip{padding:5px 12px;border-radius:20px;background:var(--green-dim);border:1px solid rgba(0,229,122,0.2);font-size:12px;color:var(--green);font-weight:500;}
+
+  .result-footer{padding:10px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .barcode-num{font-family:monospace;font-size:12px;color:var(--muted);letter-spacing:1px;}
+  .off-link{font-size:11px;color:var(--muted);text-decoration:none;transition:color 0.2s;}
+  .off-link:hover{color:var(--text2);}
+
+  .history-wrap{margin-top:4px;}
+  .history-list{display:flex;flex-direction:column;gap:7px;}
+  .h-item{display:flex;align-items:center;gap:11px;padding:11px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color 0.18s;}
+  .h-item:hover{border-color:var(--border2);}
+  .h-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .h-dot.boycott{background:var(--red);}
+  .h-dot.clean{background:var(--green);}
+  .h-dot.unknown{background:var(--yellow);}
+  .h-name{flex:1;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .h-code{font-size:11px;color:var(--muted);font-family:monospace;}
+  .empty-hist{text-align:center;padding:22px;color:var(--muted);font-size:14px;background:var(--surface);border:1px dashed var(--border2);border-radius:10px;}
+
+  .err-box{display:none;padding:14px 16px;margin-bottom:20px;background:rgba(255,59,92,0.07);border:1px solid rgba(255,59,92,0.25);border-radius:10px;font-size:13px;color:var(--red);line-height:1.5;}
+  .err-box.on{display:block;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">БС</div>
+    <div>
+      <div class="logo-text">Бойкот<span>Скан</span></div>
+      <div class="header-sub">Проверка товаров по штрих-коду</div>
+    </div>
+  </div>
+  <div class="api-badge">🌐 Live API</div>
+</header>
+
+<main>
+
+  <div class="scan-wrap">
+    <div class="scan-box">
+      <div id="interactive"></div>
+      <div class="scan-idle" id="scanIdle">
+        <div class="barcode-art">
+          <span style="height:38px"></span><span style="height:52px"></span><span style="height:44px"></span>
+          <span style="height:52px"></span><span style="height:30px"></span><span style="height:52px"></span>
+          <span style="height:42px"></span><span style="height:52px"></span><span style="height:36px"></span>
+          <span style="height:52px"></span><span style="height:46px"></span><span style="height:52px"></span>
+        </div>
+        <p>Наведите камеру на штрих-код<br>или введите цифры вручную</p>
+      </div>
+      <div class="laser" id="laser"></div>
+      <div class="corner tl" id="ctl"></div>
+      <div class="corner tr" id="ctr"></div>
+      <div class="corner bl" id="cbl"></div>
+      <div class="corner br" id="cbr"></div>
+    </div>
+    <button class="btn-scan" id="scanBtn" onclick="toggleScan()">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M2 7V5a2 2 0 0 1 2-2h2M22 7V5a2 2 0 0 1-2-2h-2M2 17v2a2 2 0 0 0 2 2h2M22 17v2a2 2 0 0 0-2 2h-2"/>
+        <line x1="7" y1="12" x2="17" y2="12"/>
+      </svg>
+      Сканировать камерой
+    </button>
+  </div>
+
+  <div class="manual-wrap">
+    <div class="section-label">Ввод вручную</div>
+    <div class="input-row">
+      <input type="text" id="codeInput" placeholder="Штрих-код товара..." maxlength="20"
+        onkeydown="if(event.key==='Enter') doCheck()">
+      <button class="btn-go" onclick="doCheck()">Проверить</button>
+    </div>
+  </div>
+
+  <div class="err-box" id="errBox"></div>
+
+  <div class="loading" id="loadBox">
+    <div class="spin"></div>
+    <div class="load-text">
+      <div id="loadMain">📦 Получаем данные о товаре...</div>
+      <div class="load-sub" id="loadSub">Запрос к Open Food Facts</div>
+    </div>
+  </div>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-banner">
+      <div class="result-emoji" id="rEmoji"></div>
+      <div>
+        <div class="result-verdict" id="rVerdict"></div>
+        <div class="result-sub" id="rSub"></div>
+      </div>
+    </div>
+    <div class="result-body">
+      <div class="product-info" id="rInfo"></div>
+      <div class="reason-box" id="rReason"></div>
+      <div class="tag-row" id="rTags"></div>
+      <div class="alt-section" id="rAlt"></div>
+    </div>
+    <div class="result-footer">
+      <span class="barcode-num" id="rCode"></span>
+      <a class="off-link" id="rLink" href="#" target="_blank">Открыть на OpenFoodFacts →</a>
+    </div>
+  </div>
+
+  <div class="history-wrap">
+    <div class="section-label">История проверок</div>
+    <div class="history-list" id="histList">
+      <div class="empty-hist">Здесь появятся проверенные товары</div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── Boycott brands list ────────────────────────────────────────────────────
+const BOYCOTT_BRANDS = [
+  { re:/coca.?cola|sprite|fanta\b|schweppes/i, name:"Coca-Cola Company", reason:"Coca-Cola продолжает деятельность на всех рынках через дочерние структуры.", alts:["Добрый Кола","Фрукт Тайм","BonAqua"] },
+  { re:/pepsi|lays|lay's|lipton|7.?up|mountain.?dew|doritos|cheetos|gatorade/i, name:"PepsiCo", reason:"PepsiCo продолжает работу и получает прибыль.", alts:["Русские снеки","Вкусвилл"] },
+  { re:/nestl[eé]|nescaf[eé]|kitkat|kit.?kat|nesquik|maggi|purina/i, name:"Nestlé", reason:"Nestlé подвергается международному бойкоту за этическую политику.", alts:["Красная цена","Вкусвилл"] },
+  { re:/ferrero|nutella|kinder|raffaello|tic.?tac|rocher/i, name:"Ferrero", reason:"Ferrero не приостановил деятельность несмотря на общественное давление.", alts:["Победа вкуса","Shoud'l"] },
+  { re:/mondelez|nabisco|oreo|milka|alpen.?gold|toblerone|cadbury|jacobs/i, name:"Mondelēz International", reason:"Mondelēz работает через дочерние компании.", alts:["Юбилейное","Привет","Бабаевский"] },
+  { re:/\bmars\b|snickers|twix|bounty|m&m|milky.?way|skittles|extra\s*gum/i, name:"Mars Inc.", reason:"Mars продолжает продажи на всех рынках.", alts:["Победа вкуса","Красный октябрь"] },
+  { re:/unilever|knorr|hellmann|axe\s*deo|dove\s*soap|rexona|lipton\s*tea/i, name:"Unilever", reason:"Unilever не реагирует на требования бойкота.", alts:["Локальные марки"] },
+  { re:/procter.?gamble|p&g|pampers|ariel|tide\b|fairy\b|gillette|head.?shoulders|pantene/i, name:"Procter & Gamble", reason:"P&G продолжает глобальную деятельность.", alts:["Локальные марки"] },
+  { re:/danone|actimel|activia|evian\b|volvic/i, name:"Danone", reason:"Danone продолжает деятельность через местные структуры.", alts:["Простоквашино","Вкусвилл"] },
+  { re:/henkel|persil\b|fa\s*deo|pril\b/i, name:"Henkel", reason:"Henkel включён в списки бойкота.", alts:["Локальные аналоги"] },
+  { re:/johnson\s*&?\s*johnson|neutrogena|listerine|band.?aid/i, name:"Johnson & Johnson", reason:"J&J не приостановил деятельность.", alts:["Локальные аналоги"] },
+  { re:/l'or[eé]al|loreal|maybelline|garnier\b|lanc[oô]me/i, name:"L'Oréal", reason:"L'Oréal продолжает продажи.", alts:["Natura Siberica","Черный жемчуг"] },
+];
+
+// EAN prefix → boycott risk
+const BOYCOTT_PREFIXES = ["729"]; // Israel
+const RUSSIA_PREFIXES  = ["460","461","462","463","464","465","466","467","468","469"];
+
+let isScanning = false;
+let scanHistory = JSON.parse(localStorage.getItem('bsc_h2')||'[]');
+renderHistory();
+
+// ── SCANNER ────────────────────────────────────────────────────────────────
+function toggleScan() { isScanning ? stopScan() : startScan(); }
+
+function startScan() {
+  Quagga.init({
+    inputStream:{ name:"Live", type:"LiveStream", target:document.querySelector('#interactive'), constraints:{ facingMode:"environment", width:640, height:480 } },
+    decoder:{ readers:["ean_reader","ean_8_reader","code_128_reader","upc_reader"] },
+    locate:true
+  }, err=>{
+    if(err){ showErr("Нет доступа к камере. Разрешите доступ в настройках браузера или введите штрих-код вручную."); return; }
+    Quagga.start();
+    isScanning = true;
+    document.getElementById('scanIdle').style.display='none';
+    document.getElementById('laser').classList.add('on');
+    ['ctl','ctr','cbl','cbr'].forEach(id=>document.getElementById(id).classList.add('on'));
+    const btn=document.getElementById('scanBtn');
+    btn.innerHTML='⏹ Остановить сканер'; btn.classList.add('stop');
+  });
+  let lastCode='', lastTime=0;
+  Quagga.onDetected(r=>{
+    const code=r.codeResult.code; const now=Date.now();
+    if(code===lastCode && now-lastTime<3000) return;
+    lastCode=code; lastTime=now;
+    document.getElementById('codeInput').value=code;
+    stopScan(); doCheck(code);
+  });
+}
+
+function stopScan() {
+  try{ Quagga.stop(); }catch(e){}
+  isScanning=false;
+  document.getElementById('scanIdle').style.display='';
+  document.getElementById('laser').classList.remove('on');
+  ['ctl','ctr','cbl','cbr'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  const btn=document.getElementById('scanBtn');
+  btn.innerHTML=`<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 7V5a2 2 0 0 1 2-2h2M22 7V5a2 2 0 0 1-2-2h-2M2 17v2a2 2 0 0 0 2 2h2M22 17v2a2 2 0 0 0-2 2h-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg> Сканировать камерой`;
+  btn.classList.remove('stop');
+}
+
+// ── CHECK ──────────────────────────────────────────────────────────────────
+async function doCheck(forceCode) {
+  const code = (forceCode||document.getElementById('codeInput').value).trim().replace(/\s/g,'');
+  if(!code) return;
+  hideErr();
+  document.getElementById('resultCard').classList.remove('on');
+  setLoad(true,'📦 Получаем данные о товаре...','Запрос к Open Food Facts');
+  try {
+    const product = await fetchOFF(code);
+    setLoad(true,'🤖 Анализируем бренд...','Проверка по списку бойкота');
+    await sleep(300);
+    const result = analyzeProduct(product, code);
+    setLoad(false);
+    showResult(result, code);
+    saveHistory(result, code, product);
+  } catch(e) {
+    setLoad(false);
+    showErr("Ошибка соединения с Open Food Facts. Проверьте интернет и попробуйте снова.<br>Вы также можете проверить на <a href='https://world.openfoodfacts.org' target='_blank' style='color:inherit'>openfoodfacts.org</a>");
+  }
+}
+
+function setLoad(on, main='', sub='') {
+  const el=document.getElementById('loadBox');
+  el.classList.toggle('on',on);
+  if(on){ document.getElementById('loadMain').textContent=main; document.getElementById('loadSub').textContent=sub; }
+}
+
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+// ── OPEN FOOD FACTS API ────────────────────────────────────────────────────
+async function fetchOFF(code) {
+  const fields = 'product_name,brands,brands_tags,countries,countries_tags,image_front_small_url,categories_tags,labels_tags,origins,manufacturing_places,stores';
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=${fields}`;
+  const res = await fetch(url, { headers:{ 'User-Agent':'BoykoScan/1.0 (educational app)' } });
+  if(!res.ok) throw new Error('network');
+  const data = await res.json();
+  return data.status===1 ? data.product : null;
+}
+
+// ── ANALYZE ────────────────────────────────────────────────────────────────
+function analyzeProduct(product, code) {
+  if(product) {
+    const haystack = [product.brands||'', product.product_name||'', (product.brands_tags||[]).join(' ')].join(' ');
+    for(const b of BOYCOTT_BRANDS) {
+      if(b.re.test(haystack)) {
+        return { status:'boycott', product, boycottName:b.name, reason:b.reason, alternatives:b.alts };
+      }
+    }
+    const prefix = code.substring(0,3);
+    if(BOYCOTT_PREFIXES.includes(prefix)) {
+      return { status:'boycott', product, boycottName:'Израиль 🇮🇱',
+        reason:`Штрих-код с префиксом ${prefix} — израильский производитель. Товар входит в список бойкота.`,
+        alternatives:['Ищите аналоги без префикса 729'] };
+    }
+    return { status:'clean', product, reason:'Этот бренд не найден в актуальных списках бойкота. Товар можно покупать.', alternatives:[] };
+  }
+  // No product in OFF
+  const prefix = code.substring(0,3);
+  if(BOYCOTT_PREFIXES.includes(prefix)) {
+    return { status:'boycott', product:null, boycottName:'Израиль 🇮🇱',
+      reason:`Товар не найден в базе, но префикс ${prefix} указывает на израильское происхождение.`,
+      alternatives:['Ищите аналоги без префикса 729'] };
+  }
+  const isRussian = RUSSIA_PREFIXES.includes(prefix);
+  return {
+    status:'unknown', product:null,
+    reason: isRussian
+      ? `Префикс ${prefix} — российское производство. Товар не найден в базе Open Food Facts (возможно, не зарегистрирован).`
+      : 'Товар не найден в базе Open Food Facts. Возможно, он безопасен — но проверить не удалось.',
+    alternatives:[]
+  };
+}
+
+// ── SHOW RESULT ────────────────────────────────────────────────────────────
+function showResult(result, code) {
+  const card=document.getElementById('resultCard');
+  card.className='result-card on '+result.status;
+
+  const cfg={ boycott:{emoji:'🚫',verdict:'БОЙКОТ'}, clean:{emoji:'✅',verdict:'БЕЗОПАСНО'}, unknown:{emoji:'❓',verdict:'НЕ НАЙДЕНО'} }[result.status];
+  document.getElementById('rEmoji').textContent=cfg.emoji;
+  document.getElementById('rVerdict').textContent=cfg.verdict;
+
+  const p=result.product;
+  const displayName = p?.product_name || result.boycottName || 'Неизвестный товар';
+  document.getElementById('rSub').textContent = displayName;
+
+  // Product info
+  const imgSrc = p?.image_front_small_url;
+  const imgHtml = imgSrc
+    ? `<img class="product-img" src="${escHtml(imgSrc)}" alt="product" onerror="this.outerHTML='<div class=product-img-ph>📦</div>'">`
+    : `<div class="product-img-ph">📦</div>`;
+  const brand   = escHtml(p?.brands || result.boycottName || '—');
+  const name    = escHtml(p?.product_name || 'Не найдено в Open Food Facts');
+  const country = escHtml(p?.countries || p?.origins || p?.manufacturing_places || '—');
+  document.getElementById('rInfo').innerHTML=`
+    ${imgHtml}
+    <div class="product-meta">
+      <div class="product-brand">${brand}</div>
+      <div class="product-fullname">${name}</div>
+      <div class="product-country">🌍 ${country}</div>
+    </div>`;
+
+  // Reason
+  document.getElementById('rReason').innerHTML=`<div class="reason-label">Вердикт</div>${escHtml(result.reason)}`;
+
+  // Tags
+  const tags=(p?.categories_tags||[]).slice(0,5).map(t=>t.replace(/^[a-z]{2}:/,'').replace(/-/g,' '));
+  if(result.status==='boycott') tags.unshift('⚠️ Бойкот');
+  document.getElementById('rTags').innerHTML=tags.map(t=>`<span class="tag${t.includes('Бойкот')?' warn':''}">${escHtml(t)}</span>`).join('');
+
+  // Alternatives
+  const altEl=document.getElementById('rAlt');
+  if(result.alternatives && result.alternatives.length>0) {
+    altEl.innerHTML=`<div class="alt-label">✦ Альтернативы</div><div class="alt-chips">${result.alternatives.map(a=>`<span class="alt-chip">${escHtml(a)}</span>`).join('')}</div>`;
+  } else { altEl.innerHTML=''; }
+
+  document.getElementById('rCode').textContent=`# ${code}`;
+  document.getElementById('rLink').href=`https://world.openfoodfacts.org/product/${code}`;
+  card.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ── HISTORY ────────────────────────────────────────────────────────────────
+function saveHistory(result, code, product) {
+  const name=product?.product_name || result.boycottName || 'Неизвестный товар';
+  scanHistory.unshift({status:result.status,name,code,ts:Date.now()});
+  if(scanHistory.length>20) scanHistory=scanHistory.slice(0,20);
+  localStorage.setItem('bsc_h2',JSON.stringify(scanHistory));
+  renderHistory();
+}
+
+function renderHistory() {
+  const el=document.getElementById('histList');
+  if(!scanHistory.length){ el.innerHTML='<div class="empty-hist">Здесь появятся проверенные товары</div>'; return; }
+  el.innerHTML=scanHistory.slice(0,7).map(h=>`
+    <div class="h-item" onclick="recheckHistory('${h.code.replace(/'/g,"\\'")}')">
+      <div class="h-dot ${h.status}"></div>
+      <div class="h-name">${escHtml(h.name)}</div>
+      <div class="h-code">${escHtml(h.code)}</div>
+    </div>`).join('');
+}
+
+function recheckHistory(code) {
+  document.getElementById('codeInput').value=code;
+  doCheck(code);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function showErr(msg){ const el=document.getElementById('errBox'); el.innerHTML=msg; el.classList.add('on'); }
+function hideErr(){ document.getElementById('errBox').classList.remove('on'); }
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>

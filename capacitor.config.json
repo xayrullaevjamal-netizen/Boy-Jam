@@ -1,0 +1,17 @@
+{
+  "appId": "com.boycottscan.app",
+  "appName": "БойкотСкан",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#09090f"
+  },
+  "plugins": {
+    "Camera": {
+      "permissions": ["camera"]
+    }
+  }
+}
